@@ -238,6 +238,15 @@
                 keys = csv.columns.slice(1);
                 var year = [...new Set(csv.map(d => d.year))]
 
+                svg.append("text")
+                    .attr("x", 510)
+                    .attr("y", 260)
+                    .text("big focus on");
+                svg.append("text")
+                    .attr("x", 500)
+                    .attr("y", 275)
+                    .text("new architectures");
+
                 var xAxis = svg.append("g")
                     .attr("transform", `translate(0,${height - margin.bottom})`)
                     .attr("class", "x-axis")
@@ -751,6 +760,19 @@
         function update2() {
             if (d3.select("#speedmaxcm").property("checked")) {
                 graph2ShowLeft();
+                svg.selectAll(".annot2").remove();
+            }
+            else {
+                svg.append("text")
+                    .attr("class", "annot2")
+                    .attr("x", 580)
+                    .attr("y", 180)
+                    .text("more than a 2x increase in");
+                svg.append("text")
+                    .attr("class", "annot2")
+                    .attr("x", 580)
+                    .attr("y", 200)
+                    .text("clock speed since 2000");
             }
 
             svg.selectAll(".lines").remove();
@@ -1250,6 +1272,19 @@
         function update3() {
             if (d3.select("#coresmaxcm").property("checked")) {
                 graph3ShowLeft();
+                svg.selectAll(".annot3").remove();
+            }
+            else {
+                svg.append("text")
+                    .attr("class", "annot3")
+                    .attr("x", 635)
+                    .attr("y", 35)
+                    .text("huge increase in core");
+                svg.append("text")
+                    .attr("class", "annot3")
+                    .attr("x", 645)
+                    .attr("y", 55)
+                    .text("count since 2000");
             }
 
             svg.selectAll(".lines").remove();
