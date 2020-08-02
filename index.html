@@ -1,0 +1,1627 @@
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <style>
+        body {
+            margin: 20px;
+            /*width: 750px;*/
+            font: 12px arial;
+        }
+
+        svg {
+            margin: auto;
+            width: 750px;
+        }
+
+        .tooltip {
+            color: rgba(0, 0, 0, 0.9);
+            font-family: Arial, Helvetica, sans-serif;
+            /*background: rgb(255, 227, 195);*/
+            background: #E8E8E8;
+            opacity: 0.95;
+            padding: 5px;
+            position: absolute;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        table,
+        td,
+        th {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+
+<body onload="graph1()">
+    <h2>How AMD and Intel CPUs have changed over the last two decades</h2>
+    <p>The following three scenes depict how CPUs from AMD and Intel have changed from the year 2000 to 2020.
+        CPU counts, speed in GHz and core count (not threads) are visualized.  The data was retrieved and then aggregated from the <a href="https://www.techpowerup.com/cpu-specs/">TechPowerUp CPU Specs database</a>.
+        <br/>
+    You can drill down and <b>hover</b> over all graph elements to see more data for the specific element in <span style="color: red;display: inline;">red</span>.
+    </p>
+
+    <input type="button" name="slide1" value="1:CPU Counts" onclick="graph1()">
+    <input type="button" name="slide2" value="2:CPU Speed" onclick="graph2()">
+    <input type="button" name="slide3" value="3:CPU Cores" onclick="graph3()">
+    <br/>
+    <br/>
+    <div id="g1content" style="visibility: hidden;">
+        <b>CPU counts:</b> Here you can look at the number of CPUs AMD and Intel have released.
+        <br/>
+        This is further broken down by Manufacturer and CPU class (desktop, mobile or server).
+        <hr/>
+        CPU release counts by:
+        <input type="radio" id="mfgall" name="opts" onclick="update1()" checked>
+        Total overall
+        <input type="radio" id="mfgcounts" name="opts" onclick="update1()">
+        Manufacturer
+        <input type="radio" id="mfgclasscounts" name="opts" onclick="update1()">
+        Manufacturer and CPU class
+    </div>
+
+    <div id="g2content" style="visibility: hidden;display: none;">
+        <b>CPU speed:</b> Here the maximum CPU speed in GHz is shown from all CPUs 
+        <br/>
+        released for that year broken down by Manufacturer and CPU class (desktop, mobile or server).
+        <hr/>
+        Maximum CPU speed in GHz by:
+        <input type="radio" id="speedmaxm" name="opts2" onclick="update2()" checked>
+        Manufacturer
+        <input type="radio" id="speedmaxcm" name="opts2" onclick="update2(); graph2ShowLeft();">
+        Manufacturer and Class
+
+        <div id="maxspeedclass2" style="visibility: hidden;display: none;">
+            <br/>
+            <br/>
+            <input type="checkbox" id="maxsc2_amd_desktop" name="maxsc2" onclick="update2()">
+            AMD Desktop Class
+            <br/>
+            <input type="checkbox" id="maxsc2_amd_mobile" name="maxsc2" onclick="update2()">
+            AMD Mobile Class
+            <br/>
+            <input type="checkbox" id="maxsc2_amd_server" name="maxsc2" onclick="update2()" checked>
+            AMD Server Class
+            <br/>
+            <input type="checkbox" id="maxsc2_intel_desktop" name="maxsc2" onclick="update2()">
+            Intel Desktop Class
+            <br/>
+            <input type="checkbox" id="maxsc2_intel_mobile" name="maxsc2" onclick="update2()">
+            Intel Mobile Class
+            <br/>
+            <input type="checkbox" id="maxsc2_intel_server" name="maxsc2" onclick="update2()" checked>
+            Intel Server Class
+        </div>
+    </div>
+
+    <div id="g3content" style="visibility: hidden;display: none;">
+        <b>CPU cores:</b> The maximum number of cores for a CPU released in that year are again 
+        <br/>
+        broken down by Manufacturer and CPU class (desktop, mobile or server).
+        <hr/>
+        Maximum number of cores by:
+        <input type="radio" id="coresmaxm" name="opts3" onclick="update3()" checked>
+        Manufacturer
+        <input type="radio" id="coresmaxcm" name="opts3" onclick="update3(); graph3ShowLeft();">
+        Manufacturer and Class
+
+        <div id="maxcoresclass3" style="visibility: hidden;display: none;">
+            <br/>
+            <br/>
+            <input type="checkbox" id="maxsc3_amd_desktop" name="maxsc3" onclick="update3()" checked>
+            AMD Desktop Class
+            <br/>
+            <input type="checkbox" id="maxsc3_amd_mobile" name="maxsc3" onclick="update3()">
+            AMD Mobile Class
+            <br/>
+            <input type="checkbox" id="maxsc3_amd_server" name="maxsc3" onclick="update3()">
+            AMD Server Class
+            <br/>
+            <input type="checkbox" id="maxsc3_intel_desktop" name="maxsc3" onclick="update3()" checked>
+            Intel Desktop Class
+            <br/>
+            <input type="checkbox" id="maxsc3_intel_mobile" name="maxsc3" onclick="update3()">
+            Intel Mobile Class
+            <br/>
+            <input type="checkbox" id="maxsc3_intel_server" name="maxsc3" onclick="update3()">
+            Intel Server Class
+        </div>
+    </div>
+    <svg id="chart" width="775" height="450" style="margin-left: 120px;"></svg>
+
+    <script>
+        var svg = d3.select("#chart"),
+            margin = { top: 35, left: 50, bottom: 0, right: 0 },
+            width = +svg.attr("width") - margin.left - margin.right,
+            height = +svg.attr("height") - margin.top - margin.bottom;
+
+        var x;
+        var y;
+        var data;
+        var data2;
+        var speed = 0;
+        var slices;
+        var slicesATIT;
+        var csvDot1;
+        var csvDot2;
+
+        var tooltip1 = d3.select("body")
+            .append("div")
+            .attr("class", "tooltip")
+            .style("position", "absolute")
+            .style("z-index", 10)
+            .style("visibility", "hidden")
+            .text("Simple text");
+        var tooltip2 = d3.select("body")
+            .append("div")
+            .attr("class", "tooltip")
+            .style("position", "absolute")
+            .style("z-index", 10)
+            .style("visibility", "hidden")
+            .text("Simple text");
+
+        var ttdiv = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+        var allColors = ["#b7e2b1", "#73c378", "#2f984f", "#b5d4e9", "#6daed5", "#2f7ebc"];
+        var allKeysLabels = ["AMD Desktop class", "AMD Mobile class", "AMD Server class",
+            "Intel Desktop class", "Intel Mobile class", "Intel Server class"];
+
+        function clearVars() {
+            svg.selectAll('*').remove();
+
+            x = null;
+            y = null;
+            data = null;
+            data2 = null;
+            speed = 0;
+            slices = null;
+            slicesATIT = null;
+            csvDot1 = null;
+            csvDot2 = null;
+
+            svg.selectAll(".legendsquares").remove();
+            svg.selectAll(".legendlabels").remove();
+            svg.style("margin-top","0px");
+        }
+
+        function hideall() {
+            d3.select("#g1content").style("display", "none");
+            d3.select("#g1content").style("visibility", "hidden");
+
+            d3.select("#g2content").style("display", "none");
+            d3.select("#g2content").style("visibility", "hidden");
+
+            d3.select("#g3content").style("display", "none");
+            d3.select("#g3content").style("visibility", "hidden");
+
+            d3.select("#maxspeedclass2").style("display", "none");
+            d3.select("#maxspeedclass2").style("visibility", "hidden");
+
+            d3.select("#maxcoresclass3").style("display", "none");
+            d3.select("#maxcoresclass3").style("visibility", "hidden");
+        }
+
+        async function graph1() {
+            clearVars();
+            hideall();
+            d3.select("#g1content").style("visibility", "visible");
+            d3.select("#g1content").style("display", "inline");
+
+            init1();
+            async function init1() {
+                x = d3.scaleBand()
+                    .range([margin.left, width - margin.right])
+                    .padding(0.1)
+
+                y = d3.scaleLinear()
+                    .rangeRound([height - margin.bottom, margin.top])
+
+                var speed = 0;
+                var keys;
+
+                var csv = await d3.csv("TechPowerUp_ReleasedClassGroupCountByYear.csv");
+
+                keys = csv.columns.slice(1);
+                var year = [...new Set(csv.map(d => d.year))]
+
+                var xAxis = svg.append("g")
+                    .attr("transform", `translate(0,${height - margin.bottom})`)
+                    .attr("class", "x-axis")
+                svg.append("text")
+                    .attr("class", "x label")
+                    .attr("text-anchor", "middle")
+                    .attr("x", width / 1.9)
+                    .attr("y", height + 33)
+                    .text("CPU Release Year");
+
+                var yAxis = svg.append("g")
+                    .attr("transform", `translate(${margin.left},0)`)
+                    .attr("class", "y-axis")
+                svg
+                    .append('g')
+                    .attr('transform', 'translate(15,200)')
+                    .append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('transform', 'rotate(-90)')
+                    .text('CPU Count')
+                    ;
+
+                data = csv;
+                data2 = JSON.parse(JSON.stringify(data));
+
+                data.forEach(function (d) {
+                    d.total = d3.sum(keys, k => +d[k]);
+                    d.amd_total = d3.sum(["amd_desktop", "amd_mobile", "amd_server"], k => +d[k]);
+                    d.intel_total = d3.sum(["intel_desktop", "intel_mobile", "intel_server"], k => +d[k]);
+                });
+                data2.forEach(function (d) {
+                    d.amd_total = d3.sum(["amd_desktop", "amd_mobile", "amd_server"], k => +d[k]);
+                    d.intel_total = d3.sum(["intel_desktop", "intel_mobile", "intel_server"], k => +d[k]);
+                    delete d.amd_desktop;
+                    delete d.amd_mobile;
+                    delete d.amd_server;
+                    delete d.intel_desktop;
+                    delete d.intel_mobile;
+                    delete d.intel_server;
+                });
+                //console.log("data[0]=", data[0]);
+                //console.log("data2[0]=", data2[0]);
+
+                y.domain([0, d3.max(data, d => d3.sum(keys, k => +d[k]))]).nice();
+
+                svg.selectAll(".y-axis").transition().duration(speed)
+                    .call(d3.axisLeft(y).ticks(null, "s"));
+                /*
+                data.sort(d3.select("#sort").property("checked")
+                    ? (a, b) => b.total - a.total
+                    : (a, b) => mfgs.indexOf(a.mfg) - mfgs.indexOf(b.mfg));
+                    */
+
+                x.domain(data.map(d => d.year));
+
+                svg.selectAll(".x-axis").transition().duration(speed)
+                    .call(d3.axisBottom(x).tickSizeOuter(0));
+
+                update1();
+                var text = svg.selectAll(".text")
+                    .data(data, d => d.year);
+                text.exit().remove();
+                text.enter().append("text")
+                    .attr("class", "text")
+                    .attr("text-anchor", "middle")
+                    .merge(text)
+                    .transition().duration(speed)
+                    .attr("x", d => x(d.year) + x.bandwidth() / 2)
+                    .attr("y", d => y(d.total) - 5)
+                    .text(d => d.total);
+            }
+        }
+
+        function update1() {
+            svg.selectAll(".legendsquares").remove();
+            svg.selectAll(".legendlabels").remove();
+            init2();
+            async function init2() {
+                if (d3.select("#mfgcounts").property("checked")) {
+                    keys = ["amd_total", "intel_total"];
+                    keysLabels = ['AMD total', 'Intel total'];
+                    svg.selectAll("g.layer").remove();
+
+                    var group = svg.selectAll("g.layer")
+                        .data(d3.stack().keys(keys)(data2), d => d.key);
+                    group.exit().remove();
+                    group.enter().append("g")
+                        .classed("layer", true)
+                        .attr("fill", "teal");
+
+
+                    svg.selectAll("g.layer").selectAll("rect").remove();
+                    var bars = svg.selectAll("g.layer").selectAll("rect")
+                        .data(d => d, e => e.data.year);
+                    bars.exit().remove();
+
+                    var z = d3.scaleOrdinal()
+                        .range(["#73c378", "#6daed5"])
+                        .domain(keys);
+
+                    var group = svg.selectAll("g.layer")
+                        .attr("fill", d => z(d.key));
+                    bars.enter().append("rect")
+                        .attr("width", x.bandwidth())
+                        .on("mouseover", function (d, i) {
+                            ttdiv.transition()
+                                .duration(200)
+                                .style("opacity", 1);
+
+                            hoverData = data2[i];
+                            amd = hoverData['amd_total'];
+                            intel = hoverData['intel_total'];
+                            currentItem = d[1] - d[0];
+                            h = "<table><caption>Year: " + hoverData['year'] + "</caption><tr><th>Mfg</th><th>Count</th></tr>";
+                            if (amd == currentItem) {
+                                h = h + "<tr style=\"color: red\"><td style=\"color: #73c378\">AMD</td><td><b>" + amd + "</b></td></tr>"
+                                    + "<tr><td style=\"color: #6daed5\">Intel</td><td>" + intel + "</td></tr></table>";
+                            }
+                            else {
+                                h = h + "<tr><td style=\"color: #73c378\">AMD</td><td>" + amd + "</td></tr>"
+                                    + "<tr style=\"color: red\"><td style=\"color: #6daed5\">Intel</td><td><b>" + intel + "</b></td></tr></table>";
+                            }
+
+                            if (hoverData.year > 2011) {
+                                ttdiv.html(h)
+                                    .style("visibility", "visible")
+                                    .style("left", (d3.event.pageX - 120) + "px")
+                                    .style("top", (d3.event.pageY - 50) + "px");
+                            }
+                            else {
+                                ttdiv.html(h)
+                                    .style("visibility", "visible")
+                                    .style("left", (d3.event.pageX + 40) + "px")
+                                    .style("top", (d3.event.pageY - 50) + "px");
+                            }
+                            d3.select(this)
+                                .attr("opacity", ".5")
+                                .style("stroke", "red")
+                                .style("stroke-width", "1.5px");
+                        })
+                        .on("mouseout", function (d) {
+                            ttdiv.style("visibility", "hidden");
+                            d3.select(this)
+                                .attr("opacity", "1")
+                                .style("stroke", null)
+                                .style("fill", null)
+                                .style("stroke-width", null);
+                        })
+                        .merge(bars)
+                        .transition().duration(speed)
+                        .attr("x", d => x(d.data.year))
+                        .attr("y", d => y(d[1]))
+                        .attr("height", d => y(d[0]) - y(d[1]));
+
+                    ;
+                    bars.exit().remove();
+
+                    // legend
+                    var size = 20
+                    svg.selectAll("legendsquares")
+                        .data(keysLabels)
+                        .enter()
+                        .append("rect")
+                        .attr("class", "legendsquares")
+                        .attr("x", width - 100)
+                        .attr("y", function (d, i) { return 30 + i * (size + 5) })
+                        .attr("width", size)
+                        .attr("height", size)
+                        .style("fill", function (d) { return z(d) })
+
+                    svg.selectAll("legendlabels")
+                        .data(keysLabels)
+                        .enter()
+                        .append("text")
+                        .attr("class", "legendlabels")
+                        .attr("x", (width - 100) + size * 1.2)
+                        .attr("y", function (d, i) { return 30 + i * (size + 5) + (size / 2) })
+                        .style("fill", function (d) { return z(d) })
+                        .text(function (d) { return d })
+                        .attr("text-anchor", "left")
+                        .style("alignment-baseline", "middle")
+
+                }
+                else if (d3.select("#mfgclasscounts").property("checked")) {
+                    keys = ["amd_desktop", "amd_mobile", "amd_server", "intel_desktop", "intel_mobile", "intel_server"];
+                    keysLabels = ["AMD Desktop class", "AMD Mobile class", "AMD Server class",
+                        "Intel Desktop class", "Intel Mobile class", "Intel Server class"];
+
+                    var z = d3.scaleOrdinal()
+                        .range(["#b7e2b1", "#73c378", "#2f984f", "#b5d4e9", "#6daed5", "#2f7ebc"])
+                        .domain(keys);
+
+                    var group = svg.selectAll("g.layer")
+                        .data(d3.stack().keys(keys)(data), d => d.key);
+                    group.exit().remove();
+
+                    group.enter().append("g")
+                        .classed("layer", true)
+                        .attr("fill", d => z(d.key));
+
+                    var bars = svg.selectAll("g.layer").selectAll("rect")
+                        .data(d => d, e => e.data.year)
+                    bars.exit().remove();
+
+                    bars.enter().append("rect")
+                        .attr("width", x.bandwidth())
+                        .on("mouseover", function (d, i) {
+                            ttdiv.transition()
+                                .duration(200)
+                                .style("opacity", 1);
+                            hoverData = data2[i];
+                            currentItem = d[1] - d[0];
+                            //console.log("d=", d, ", i=", i, ', ci=', currentItem);
+                            myd = d.data;
+                            myd.amd_a = myd.amd_total;
+                            myd.intel_a = myd.intel_total;
+                            mc = { 'amd': 'AMD', 'intel': 'Intel' };
+                            mcc = { 'amd': "#73c378", 'intel': "#6daed5" };
+                            h = "<table><caption>Year: " + hoverData['year'] + "</caption><tr><th>Mfg</th><th>Class</th><th>Count</th><th>Total</th></tr>";
+                            for ([k, v] of Object.entries(myd).sort()) {
+                                s = k.split('_')
+                                if (s[1] == 'desktop') {
+                                    h = h + "<tr>" +
+                                        "<td style=\"color: " + mcc[s[0]] + "\" rowspan=\"3\">" + mc[s[0]] + "</td>" +
+                                        "<td>" + s[1] + "</td>";
+                                    if (currentItem == v) {
+                                        h = h + "<td style=\"color: red\"><b>" + parseInt(v) + "</b></td>";
+                                    }
+                                    else {
+                                        h = h + "<td>" + parseInt(v) + "</td>";
+                                    }
+                                    h = h + "<td rowspan=\"3\">" + myd[s[0] + "_a"] + "</td>" +
+                                        "</tr>";
+                                }
+                                else if (['desktop', 'mobile', 'server'].includes(s[1])) {
+                                    h = h + "<tr>" +
+                                        "<td>" + s[1] + "</td>";
+                                    if (currentItem == v) {
+                                        h = h + "<td style=\"color: red\"><b>" + parseInt(v) + "</b></td>";
+                                    }
+                                    else {
+                                        h = h + "<td>" + parseInt(v) + "</td>";
+                                    }
+                                    h = h + "</tr>";
+                                }
+                                //console.log('k=', k, ', v=', v);
+                            }
+                            h = h + "</table>";
+
+                            if (myd.year > 2011) {
+                                ttdiv.html(h)
+                                    .style("visibility", "visible")
+                                    .style("left", (d3.event.pageX - 250) + "px")
+                                    .style("top", (d3.event.pageY - 50) + "px");
+                            }
+                            else {
+                                ttdiv.html(h)
+                                    .style("visibility", "visible")
+                                    .style("left", (d3.event.pageX + 40) + "px")
+                                    .style("top", (d3.event.pageY - 50) + "px");
+                            }
+                            d3.select(this)
+                                .attr("opacity", ".5")
+                                .style("stroke", "red")
+                                .style("stroke-width", "1.5px");
+                        })
+                        .on("mouseout", function (d) {
+                            ttdiv.style("visibility", "hidden");
+                            d3.select(this)
+                                .attr("opacity", "1")
+                                .style("stroke", null)
+                                .style("fill", null)
+                                .style("stroke-width", null);
+                        })
+                        .merge(bars)
+                        .transition().duration(speed)
+                        .attr("x", d => x(d.data.year))
+                        .attr("y", d => y(d[1]))
+                        .attr("height", d => y(d[0]) - y(d[1]));
+
+                    ;
+                    bars.exit().remove();
+
+                    // legend
+                    var size = 20
+                    svg.selectAll("legendsquares")
+                        .data(keysLabels)
+                        .enter()
+                        .append("rect")
+                        .attr("class", "legendsquares")
+                        .attr("x", width - 100)
+                        .attr("y", function (d, i) { return 30 + i * (size + 5) })
+                        .attr("width", size)
+                        .attr("height", size)
+                        .style("fill", function (d) { return z(d) })
+
+                    svg.selectAll("legendlabels")
+                        .data(keysLabels)
+                        .enter()
+                        .append("text")
+                        .attr("class", "legendlabels")
+                        .attr("x", (width - 100) + size * 1.2)
+                        .attr("y", function (d, i) { return 30 + i * (size + 5) + (size / 2) })
+                        .style("fill", function (d) { return z(d) })
+                        .text(function (d) { return d })
+                        .attr("text-anchor", "left")
+                        .style("alignment-baseline", "middle")
+                }
+                else {
+                    keys = ["total"];
+                    keysLabels = ["Total CPUs"];
+
+                    var group = svg.selectAll("g.layer")
+                        .data(d3.stack().keys(keys)(data), d => d.key);
+                    group.exit().remove();
+
+                    group.enter().append("g")
+                        .classed("layer", true)
+                        .attr("fill", "teal");
+
+                    var bars = svg.selectAll("g.layer").selectAll("rect")
+                        .data(d => d, e => e.data.year)
+                    bars.exit().remove();
+
+                    bars.enter().append("rect")
+                        .attr("width", x.bandwidth())
+                        .on("mouseover", function (d) {
+                            ttdiv.transition()
+                                .duration(200)
+                                .style("opacity", 1);
+                            ttdiv.html("<div><div style=\"color: red; display: inline\"><b>" +
+                                d.data.total + "</b></div> CPUs</div>")
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX + 40) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                            d3.select(this)
+                                .attr("opacity", ".5")
+                                .style("stroke", "red")
+                                .style("stroke-width", "1.5px");
+                        })
+                        .on("mouseout", function (d) {
+                            ttdiv.style("visibility", "hidden");
+                            d3.select(this)
+                                .attr("opacity", "1")
+                                .style("stroke", null)
+                                .style("fill", null)
+                                .style("stroke-width", null);
+                        })
+                        .merge(bars)
+                        .transition().duration(speed)
+                        .attr("x", d => x(d.data.year))
+                        .attr("y", d => y(d.data.total))
+                        .attr("height", d => height - y(d.data.total));
+
+                    bars.exit().remove();
+
+                    // legend
+                    var size = 20
+                    svg.selectAll("legendsquares")
+                        .data(keysLabels)
+                        .enter()
+                        .append("rect")
+                        .attr("class", "legendsquares")
+                        .attr("x", width - 100)
+                        .attr("y", function (d, i) { return 50 + i * (size + 5) })
+                        .attr("width", size)
+                        .attr("height", size)
+                        .style("fill", function (d) { return "teal" })
+
+                    svg.selectAll("legendlabels")
+                        .data(keysLabels)
+                        .enter()
+                        .append("text")
+                        .attr("class", "legendlabels")
+                        .attr("x", (width - 100) + size * 1.2)
+                        .attr("y", function (d, i) { return 50 + i * (size + 5) + (size / 2) })
+                        .style("fill", function (d) { return "teal" })
+                        .text(function (d) { return d })
+                        .attr("text-anchor", "left")
+                        .style("alignment-baseline", "middle")
+                }
+            }
+        }
+
+        function graph2ShowLeft() {
+            d3.select("#maxspeedclass2").style("visibility", "visible");
+            d3.select("#maxspeedclass2").style("display", "inline");
+            svg.style("margin-top","-130px");
+        }
+
+        function graph3ShowLeft() {
+            d3.select("#maxcoresclass3").style("visibility", "visible");
+            d3.select("#maxcoresclass3").style("display", "inline");
+            svg.style("margin-top","-130px");
+        }
+
+        async function graph2() {
+            clearVars();
+            hideall();
+            d3.select("#g2content").style("visibility", "visible");
+            d3.select("#g2content").style("display", "inline");
+
+            init2();
+            async function init2() {
+                x = d3.scaleLinear()
+                    .range([margin.left, width - margin.right]);
+
+                y = d3.scaleLinear()
+                    .rangeRound([height - margin.bottom, margin.top]);
+
+                csv = await d3.csv("TechPowerUp_ReleasedClassGroupMaxClockByYear.csv");
+                // amd and intel max per yer
+                slicesATIT = [{ 'col': 'amd_high', 'values': [] }, { 'col': 'intel_high', 'values': [] }]
+                csv.forEach(function (d) {
+                    slicesATIT[0].values.push({ 'date': d.released, 'vals': d3.max(["amd_desktop", "amd_mobile", "amd_server"], k => +d[k]) });
+                    slicesATIT[1].values.push({ 'date': d.released, 'vals': d3.max(["intel_desktop", "intel_mobile", "intel_server"], k => +d[k]) });
+                });
+                csvDot1 = [];
+                csvDot2 = [];
+                csv.forEach(function (d) {
+                    csvDot1.push({
+                        'date': d.released,
+                        'amd_max': d3.max(["amd_desktop", "amd_mobile", "amd_server"], k => +d[k])
+                    })
+                    csvDot2.push({
+                        'date': d.released,
+                        'intel_max': d3.max(["intel_desktop", "intel_mobile", "intel_server"], k => +d[k])
+                    })
+                });
+                slices = csv.columns.slice(1).map(function (col) {
+                    return {
+                        col: col, values: csv.map(function (d) {
+                            return { date: +d.released, vals: +d[col] };
+                        })
+                    };
+                });
+
+                n = 20;
+                var csv2 = d3.range(n).map(function (d) { return { "y": d3.randomUniform(1)() } });
+                keys = csv.columns.slice(1);
+                var year = [...new Set(csv.map(d => d.year))]
+
+                x.domain([
+                    d3.min(csv, d => d.released),
+                    d3.max(csv, d => d.released)
+                ]);
+
+
+                y.domain([
+                    d3.min(csv, d => d3.min(keys, k => +d[k])),
+                    d3.max(csv, d => d3.max(keys, k => +d[k]))
+                ]);
+
+                var xAxis = svg.append("g")
+                    .attr("transform", `translate(0,${height - margin.bottom})`)
+                    .attr("class", "x-axis")
+                    .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+
+                svg.append("text")
+                    .attr("class", "x label")
+                    .attr("text-anchor", "middle")
+                    .attr("x", width / 1.9)
+                    .attr("y", height + 33)
+                    .text("CPU Release Year");
+
+                var yAxis = svg.append("g")
+                    .attr("transform", `translate(${margin.left},0)`)
+                    .attr("class", "y-axis")
+                    .call(d3.axisLeft(y));
+
+                svg
+                    .append('g')
+                    .attr('transform', 'translate(15,200)')
+                    .append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('transform', 'rotate(-90)')
+                    .text('CPU speed in GHz')
+                    ;
+
+                /*
+                var line = d3.line()
+                    .x(function (d, i) { return x(d.released); })
+                    .y(function (d) { return y(d.amd_desktop); })
+                    ;
+                
+                svg.append("path")
+                    .datum(slices)
+                    .attr("class", "line")
+                    .attr("d", line)
+                    .attr("fill", "none")
+                    .attr("stroke", "black")
+                    .attr("stroke-width", 2)
+                    ;
+                */
+
+                update2();
+            }
+        }
+
+        function update2() {
+            if (d3.select("#speedmaxcm").property("checked")) {
+                graph2ShowLeft();
+            }
+
+            svg.selectAll(".lines").remove();
+            for (i = 0; i < 6; i++) {
+                svg.selectAll(".dot" + i).remove();
+            }
+            //svg.selectAll(".dot1").remove();
+            svg.selectAll(".legendsquares").remove();
+            svg.selectAll(".legendlabels").remove();
+
+            var line = d3.line()
+                .x(function (d, i) { return x(d.date); })
+                .y(function (d) { return y(d.vals); })
+                .curve(d3.curveMonotoneX)
+                ;
+
+            if (d3.select("#speedmaxcm").property("checked")) {
+                d3.select("#maxspeedclass2")
+                    .style("visibility", "visible");
+
+                var ttdiv = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
+                var myKeys = [];
+                var mySlices = [];
+                var colors = [];
+                var keysLabels = [];
+                for (i = 0; i < keys.length; i++) {
+                    k = keys[i];
+                    if (d3.select("#maxsc2_" + k).property("checked")) {
+                        myKeys.push(k);
+                        mySlices.push(slices[i]);
+                        keysLabels.push(allKeysLabels[i]);
+                        colors.push(allColors[i]);
+                    }
+                }
+
+                function moo(obj, d, i, z) {
+                    cls = d3.select(obj).attr("class")
+                    clsn = cls.charAt(cls.length - 1);
+
+                    var i2;
+                    if (!(clsn == 'r' || clsn == 'p')) {
+                        i2 = clsn;
+                    }
+
+                    d3.selectAll(".lines")
+                        .attr("opacity", function (dd, ii) { if (i != ii && i2 != ii) { return ".1"; } });
+
+                    for (ii = 0; ii < 6; ii++) {
+                        if (ii != z || ii != i || ii != i2) {
+                            //if(ii != i) {
+                            d3.selectAll(".dot" + ii)
+                                .attr("opacity", function (dd, iii) { return ".1"; });
+                        }
+                    }
+
+                    d3.select(obj)
+                        .attr("opacity", "1")
+                        .style("stroke-width", "3px");
+                    if (cls.startsWith('dot')) {
+                        d3.select(obj)
+                            .style("stroke", "red")
+                            .style("stroke-width", "1.5px");
+
+                        ttdiv.transition()
+                            .duration(200)
+                            .style("opacity", 1);
+                        year = d.date
+                        h = "<table><caption>Year: " + year + "</caption><tr><th>Mfg</th><th>Class</th><th>Max Speed</th></tr>";
+                        for (ii = 0; ii < mySlices.length; ii++) {
+                            col = mySlices[ii].col;
+                            mfg = col.split("_");
+                            vals = mySlices[ii].values;
+                            v = 0;
+                            vals.forEach(function (vv) {
+                                if (vv.date == year) { v = vv.vals }
+                            });
+                            m = "<td style=\"color: #6daed5\">Intel</td>";
+                            c = "Desktop";
+                            if (mfg[0] == 'amd') {
+                                m = "<td style=\"color: #73c378\">AMD</td>";
+                            }
+                            if (mfg[1] == 'mobile') {
+                                c = "Mobile";
+                            }
+                            else if (mfg[1] == 'server') {
+                                c = "Server";
+                            }
+
+                            if (i == ii || z == ii) {
+                                h = h + "<tr>" + m + "<td>" + c + "</td><td style=\"color: red\">" + v + " GHz</td></tr>";
+                            }
+                            else {
+                                h = h + "<tr>" + m + "<td>" + c + "</td><td>" + v + " GHz</td></tr>";
+                            }
+                        }
+                        h = h + "</table>";
+
+                        if (d.date > 2011) {
+                            ttdiv.html(h)
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX - 250) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                        }
+                        else {
+                            ttdiv.html(h)
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX + 40) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                        }
+                    }
+                }
+                function mot(obj, d, i) {
+                    cls = d3.select(obj).attr("class")
+                    clsn = cls.charAt(cls.length - 1);
+                    if (clsn != 'r') {
+                        i = clsn;
+                    }
+
+                    d3.selectAll(".lines")
+                        .attr("opacity", "1");
+                    for (ii = 0; ii < 6; ii++) {
+                        d3.selectAll(".dot" + ii)
+                            .attr("opacity", "1")
+                            .attr("stroke", "none");
+                    }
+                    ttdiv.style("visibility", "hidden");
+                    update2();
+                }
+
+                lines = svg.selectAll("lines")
+                    .data(mySlices)
+                    .enter()
+                    .append("g")
+                    .attr("class", "lines");
+
+                for (i = 0; i < myKeys.length; i++) {
+                    lines.append("path")
+                        .attr("class", myKeys[i])
+                        //.attr("class", "line"+i)
+                        .attr("d", function (d) { return line(d.values); })
+                        .attr("fill", "none")
+                        .attr("stroke", function (d, ii) { return colors[ii]; })
+                        .attr("stroke-width", 2.5)
+                        .on("mouseover", function (d, ii) {
+                            //cls = d3.select(this)['_groups'][0][0]['attributes']['class']['value'];
+                            cls = d3.select(this);
+                            //iii = cls.charAt(cls.length - 1);
+                            moo(this, d, ii, i);
+                        })
+                        .on("mouseout", function (d, ii) {
+                            mot(this, d, ii);
+                        });
+                }
+
+                var z1 = d3.scaleOrdinal()
+                    .range(colors.slice(0, 3))
+                    .domain(myKeys.slice(0, 3));
+                var z2 = d3.scaleOrdinal()
+                    .range(colors.slice(3, 6))
+                    .domain(myKeys.slice(3, 6));
+                // legend
+                var size = 20
+                svg.selectAll("legendsquares")
+                    .data(keysLabels.slice(0, 3))
+                    .enter()
+                    .append("rect")
+                    .attr("class", "legendsquares")
+                    .attr("x", width - 650)
+                    .attr("y", function (d, i) { return 30 + i * (size + 5) })
+                    .attr("width", size)
+                    .attr("height", size)
+                    .style("fill", function (d) { return z1(d) })
+                    ;
+
+                svg.selectAll("legendlabels")
+                    .data(keysLabels.slice(0, 3))
+                    .enter()
+                    .append("text")
+                    .attr("class", "legendlabels")
+                    .attr("x", (width - 650) + size * 1.2)
+                    .attr("y", function (d, i) { return 30 + i * (size + 5) + (size / 2) })
+                    .style("fill", function (d) { return z1(d) })
+                    .text(function (d) { return d })
+                    .attr("text-anchor", "left")
+                    .style("alignment-baseline", "middle");
+
+                if (keysLabels.length > 3) {
+                    svg.selectAll("legendsquares")
+                        .data(keysLabels.slice(3, 6))
+                        .enter()
+                        .append("rect")
+                        .attr("class", "legendsquares")
+                        .attr("x", width - 500)
+                        .attr("y", function (d, i) { return 30 + i * (size + 5) })
+                        .attr("width", size)
+                        .attr("height", size)
+                        .style("fill", function (d) { return z2(d) })
+                        ;
+
+                    svg.selectAll("legendlabels")
+                        .data(keysLabels.slice(3, 6))
+                        .enter()
+                        .append("text")
+                        .attr("class", "legendlabels")
+                        .attr("x", (width - 500) + size * 1.2)
+                        .attr("y", function (d, i) { return 30 + i * (size + 5) + (size / 2) })
+                        .style("fill", function (d) { return z2(d) })
+                        .text(function (d) { return d })
+                        .attr("text-anchor", "left")
+                        .style("alignment-baseline", "middle");
+                }
+
+                for (i = 0; i < keysLabels.length; i++) {
+                    svg.selectAll(".dot" + i)
+                        .data(mySlices[i].values)
+                        .enter()
+                        .append("circle")
+                        .attr("class", "dot" + i)
+                        .attr("cx", function (d, i) { return x(d.date); })
+                        .attr("cy", function (d) { return y(d.vals); })
+                        .attr("fill", colors[i])
+                        .attr("stroke", colors[i])
+                        .attr("r", 4)
+                        .on("mouseover", function (dd, ii) {
+                            cls = d3.select(this)['_groups'][0][0]['attributes']['class']['value'];
+                            iii = cls.charAt(cls.length - 1);
+                            moo(this, dd, ii, iii);
+                        })
+                        .on("mouseout", function (dd, ii) {
+                            mot(this, dd, ii);
+                        });
+                }
+            }
+            else {
+                d3.select("#maxspeedclass2")
+                    .style("visibility", "hidden");
+
+                var colors = ["#73c378", "#6daed5"];
+                var keysLabels = ['AMD', 'Intel'];
+                var ttdiv = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
+                function moo(d, i, obj) {
+                    if ('amd_max' in d || ('col' in d && d.col == 'amd_high')) {
+                        d3.selectAll(".dot1")
+                            .attr("opacity", function (dd, ii) { return ".3"; });
+                        d3.selectAll(".lines")
+                            .attr("opacity", function (dd, ii) { if (ii == 1) { return ".3"; } });
+                    }
+                    else {
+                        d3.selectAll(".dot0")
+                            .attr("opacity", function (dd, ii) { return ".3"; });
+                        d3.selectAll(".lines")
+                            .attr("opacity", function (dd, ii) { if (ii == 0) { return ".3"; } });
+                    }
+
+                    if (obj) {
+                        d3.select(obj)
+                            .attr("stroke", "red");
+
+                        ma = "<td style=\"color: #73c378\">AMD</td>";
+                        mi = "<td style=\"color: #6daed5\">Intel</td>";
+                        ad = csvDot1[i];
+                        id = csvDot2[i];
+                        adi = Math.round(((ad.amd_max - csvDot1[0].amd_max) / csvDot1[0].amd_max * 100)) + "%";
+                        idi = Math.round(((id.intel_max - csvDot2[0].intel_max) / csvDot2[0].intel_max * 100)) + "%";
+                        hda = "<tr>" + ma + "<td>" + ad.amd_max + " GHz</td><td>" + adi + "</td></tr>";
+                        hdi = "<tr>" + mi + "<td>" + id.intel_max + " GHz</td><td>" + idi + "</td></tr>";
+                        if ('amd_max' in d) {
+                            hda = "<tr>" + ma + "<td style=\"color: red\"><b>" + ad.amd_max + "</b> GHz</td><td>" + adi + "</td></tr>";
+                        }
+                        else if ('intel_max' in d) {
+                            hdi = "<tr>" + mi + "<td style=\"color: red\"><b>" + id.intel_max + "</b> GHz</td><td>" + idi + "</td></tr>";
+                        }
+
+                        ttdiv.transition()
+                            .duration(200)
+                            .style("opacity", 1);
+                        h = "<table><caption>Year: " + d.date + "</caption><tr><th>Mfg</th><th>Max Speed</th><th>% increase<br/>since 2000</th></tr>";
+                        h = h + hda + hdi + "</table>";
+
+                        if (d.date > 2011) {
+                            ttdiv.html(h)
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX - 250) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                        }
+                        else {
+                            ttdiv.html(h)
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX + 40) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                        }
+                    }
+                }
+                function mot(d, i, obj) {
+                    if ('amd_max' in d || ('col' in d && d.col == 'amd_high')) {
+                        d3.selectAll(".dot1")
+                            .attr("opacity", function (dd, ii) { return "1"; });
+                        d3.selectAll(".lines")
+                            .attr("opacity", function (dd, ii) { if (ii == 1) { return "1"; } });
+                    }
+                    else {
+                        d3.selectAll(".dot0")
+                            .attr("opacity", function (dd, ii) { return "1"; });
+                        d3.selectAll(".lines")
+                            .attr("opacity", function (dd, ii) { if (ii == 0) { return "1"; } });
+                    }
+                    ttdiv.style("visibility", "hidden");
+
+                    d3.select(obj)
+                        .attr("stroke", "none");
+                }
+
+                // speedmaxm
+                lines = svg.selectAll("lines")
+                    .data(slicesATIT)
+                    .enter()
+                    .append("g")
+                    .attr("class", "lines");
+
+                lines.append("path")
+                    .attr("class", keys)
+                    .attr("d", function (d) { return line(d.values); })
+                    .attr("fill", "none")
+                    .attr("stroke", function (d, i) { return colors[i]; })
+                    .attr("stroke-width", 3)
+                    .on("mouseover", function (d, i) {
+                        moo(d, i);
+                    })
+                    .on("mouseout", function (d, i) {
+                        mot(d, i);
+                    });
+
+                dottypes = ['amd_max', 'intel_max'];
+                dataf = [csvDot1, csvDot2];
+                for (i = 0; i < dottypes.length; i++) {
+                    svg.selectAll(".dot" + i)
+                        .data(dataf[i])
+                        .enter()
+                        .append("circle")
+                        .attr("class", "dot" + i)
+                        .attr("cx", function (d, i) { return x(d.date); })
+                        .attr("cy", function (d) { return y(d[dottypes[i]]); })
+                        .attr("fill", colors[i])
+                        .attr("stroke", colors[i])
+                        .attr("r", 4)
+                        .on("mouseover", function (dd, ii, obj) {
+                            moo(dd, ii, this);
+                        })
+                        .on("mouseout", function (dd, ii) {
+                            mot(dd, ii, this);
+                        });
+                }
+
+                var z = d3.scaleOrdinal()
+                    .range(colors)
+                    .domain(keys);
+
+                // legend
+                var size = 20
+                svg.selectAll("legendsquares")
+                    .data(keysLabels)
+                    .enter()
+                    .append("rect")
+                    .attr("class", "legendsquares")
+                    .attr("x", width - 650)
+                    .attr("y", function (d, i) { return 30 + i * (size + 5) })
+                    .attr("width", size)
+                    .attr("height", size)
+                    .style("fill", function (d) { return z(d) })
+                    ;
+
+                svg.selectAll("legendlabels")
+                    .data(keysLabels)
+                    .enter()
+                    .append("text")
+                    .attr("class", "legendlabels")
+                    .attr("x", (width - 650) + size * 1.2)
+                    .attr("y", function (d, i) { return 30 + i * (size + 5) + (size / 2) })
+                    .style("fill", function (d) { return z(d) })
+                    .text(function (d) { return d })
+                    .attr("text-anchor", "left")
+                    .style("alignment-baseline", "middle")
+            }
+        }
+
+        async function graph3() {
+            clearVars();
+            hideall();
+            d3.select("#g3content").style("visibility", "visible");
+            d3.select("#g3content").style("display", "inline");
+
+            init3();
+            async function init3() {
+                x = d3.scaleLinear()
+                    .range([margin.left, width - margin.right]);
+
+                y = d3.scaleLinear()
+                    .rangeRound([height - margin.bottom, margin.top]);
+
+                csv = await d3.csv("TechPowerUp_ReleasedClassGroupMaxCoresByYear.csv");
+                //console.log('csv=', csv);
+                // amd and intel max per yer
+                slicesATIT = [{ 'col': 'amd_high', 'values': [] }, { 'col': 'intel_high', 'values': [] }]
+                csv.forEach(function (d) {
+                    slicesATIT[0].values.push({ 'date': d.released, 'vals': d3.max(["amd_desktop", "amd_mobile", "amd_server"], k => +d[k]) });
+                    slicesATIT[1].values.push({ 'date': d.released, 'vals': d3.max(["intel_desktop", "intel_mobile", "intel_server"], k => +d[k]) });
+                });
+                csvDot1 = [];
+                csvDot2 = [];
+                csv.forEach(function (d) {
+                    csvDot1.push({
+                        'date': d.released,
+                        'amd_max': d3.max(["amd_desktop", "amd_mobile", "amd_server"], k => +d[k])
+                    })
+                    csvDot2.push({
+                        'date': d.released,
+                        'intel_max': d3.max(["intel_desktop", "intel_mobile", "intel_server"], k => +d[k])
+                    })
+                });
+                slices = csv.columns.slice(1).map(function (col) {
+                    return {
+                        col: col, values: csv.map(function (d) {
+                            return { date: +d.released, vals: +d[col] };
+                        })
+                    };
+                });
+
+                n = 20;
+                var csv2 = d3.range(n).map(function (d) { return { "y": d3.randomUniform(1)() } });
+                keys = csv.columns.slice(1);
+                var year = [...new Set(csv.map(d => d.year))]
+
+                x.domain([
+                    d3.min(csv, d => d.released),
+                    d3.max(csv, d => d.released)
+                ]);
+
+
+                y.domain([
+                    d3.min(csv, d => d3.min(keys, k => +d[k])),
+                    d3.max(csv, d => d3.max(keys, k => +d[k]))
+                ]);
+
+                var xAxis = svg.append("g")
+                    .attr("transform", `translate(0,${height - margin.bottom})`)
+                    .attr("class", "x-axis")
+                    .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+
+                svg.append("text")
+                    .attr("class", "x label")
+                    .attr("text-anchor", "middle")
+                    .attr("x", width / 1.9)
+                    .attr("y", height + 33)
+                    .text("CPU Release Year");
+
+                var yAxis = svg.append("g")
+                    .attr("transform", `translate(${margin.left},0)`)
+                    .attr("class", "y-axis")
+                    .call(d3.axisLeft(y));
+
+                svg
+                    .append('g')
+                    .attr('transform', 'translate(15,200)')
+                    .append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('transform', 'rotate(-90)')
+                    .text('CPU core count')
+                    ;
+
+                /*
+                var line = d3.line()
+                    .x(function (d, i) { return x(d.released); })
+                    .y(function (d) { return y(d.amd_desktop); })
+                    ;
+                
+                svg.append("path")
+                    .datum(slices)
+                    .attr("class", "line")
+                    .attr("d", line)
+                    .attr("fill", "none")
+                    .attr("stroke", "black")
+                    .attr("stroke-width", 2)
+                    ;
+                */
+
+                update3();
+            }
+        }
+
+        function update3() {
+            if (d3.select("#coresmaxcm").property("checked")) {
+                graph3ShowLeft();
+            }
+
+            svg.selectAll(".lines").remove();
+            for (i = 0; i < 6; i++) {
+                svg.selectAll(".dot" + i).remove();
+            }
+            //svg.selectAll(".dot1").remove();
+            svg.selectAll(".legendsquares").remove();
+            svg.selectAll(".legendlabels").remove();
+
+            var line = d3.line()
+                .x(function (d, i) { return x(d.date); })
+                .y(function (d) { return y(d.vals); })
+                .curve(d3.curveMonotoneX)
+                ;
+
+            if (d3.select("#coresmaxcm").property("checked")) {
+                d3.select("#maxcoresclass3")
+                    .style("visibility", "visible");
+
+                var ttdiv = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
+                var myKeys = [];
+                var mySlices = [];
+                var colors = [];
+                var keysLabels = [];
+                for (i = 0; i < keys.length; i++) {
+                    k = keys[i];
+                    if (d3.select("#maxsc3_" + k).property("checked")) {
+                        myKeys.push(k);
+                        mySlices.push(slices[i]);
+                        keysLabels.push(allKeysLabels[i]);
+                        colors.push(allColors[i]);
+                    }
+                }
+
+                function moo(obj, d, i, z) {
+                    cls = d3.select(obj).attr("class")
+                    clsn = cls.charAt(cls.length - 1);
+
+                    var i2;
+                    if (!(clsn == 'r' || clsn == 'p')) {
+                        i2 = clsn;
+                    }
+
+                    d3.selectAll(".lines")
+                        .attr("opacity", function (dd, ii) { if (i != ii && i2 != ii) { return ".1"; } });
+
+                    for (ii = 0; ii < 6; ii++) {
+                        if (ii != z || ii != i || ii != i2) {
+                            //if(ii != i) {
+                            d3.selectAll(".dot" + ii)
+                                .attr("opacity", function (dd, iii) { return ".1"; });
+                        }
+                    }
+
+                    d3.select(obj)
+                        .attr("opacity", "1")
+                        .style("stroke-width", "3px");
+                    if (cls.startsWith('dot')) {
+                        d3.select(obj)
+                            .style("stroke", "red")
+                            .style("stroke-width", "1.5px");
+
+                        ttdiv.transition()
+                            .duration(200)
+                            .style("opacity", 1);
+                        year = d.date
+                        h = "<table><caption>Year: " + year + "</caption><tr><th>Mfg</th><th>Class</th><th>Max cores</th></tr>";
+                        for (ii = 0; ii < mySlices.length; ii++) {
+                            col = mySlices[ii].col;
+                            mfg = col.split("_");
+                            vals = mySlices[ii].values;
+                            v = 0;
+                            vals.forEach(function (vv) {
+                                if (vv.date == year) { v = vv.vals }
+                            });
+                            m = "<td style=\"color: #6daed5\">Intel</td>";
+                            c = "Desktop";
+                            if (mfg[0] == 'amd') {
+                                m = "<td style=\"color: #73c378\">AMD</td>";
+                            }
+                            if (mfg[1] == 'mobile') {
+                                c = "Mobile";
+                            }
+                            else if (mfg[1] == 'server') {
+                                c = "Server";
+                            }
+
+                            if (i == ii || z == ii) {
+                                h = h + "<tr>" + m + "<td>" + c + "</td><td style=\"color: red\">" + v + " cores</td></tr>";
+                            }
+                            else {
+                                h = h + "<tr>" + m + "<td>" + c + "</td><td>" + v + " cores</td></tr>";
+                            }
+                        }
+                        h = h + "</table>";
+
+                        if (d.date > 2011) {
+                            ttdiv.html(h)
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX - 250) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                        }
+                        else {
+                            ttdiv.html(h)
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX + 40) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                        }
+                    }
+                }
+                function mot(obj, d, i) {
+                    cls = d3.select(obj).attr("class")
+                    clsn = cls.charAt(cls.length - 1);
+                    if (clsn != 'r') {
+                        i = clsn;
+                    }
+
+                    d3.selectAll(".lines")
+                        .attr("opacity", "1");
+                    for (ii = 0; ii < 6; ii++) {
+                        d3.selectAll(".dot" + ii)
+                            .attr("opacity", "1")
+                            .attr("stroke", "none");
+                    }
+                    ttdiv.style("visibility", "hidden");
+                    update3();
+                }
+
+                lines = svg.selectAll("lines")
+                    .data(mySlices)
+                    .enter()
+                    .append("g")
+                    .attr("class", "lines");
+
+                for (i = 0; i < myKeys.length; i++) {
+                    lines.append("path")
+                        .attr("class", myKeys[i])
+                        //.attr("class", "line"+i)
+                        .attr("d", function (d) { return line(d.values); })
+                        .attr("fill", "none")
+                        .attr("stroke", function (d, ii) { return colors[ii]; })
+                        .attr("stroke-width", 2.5)
+                        .on("mouseover", function (d, ii) {
+                            //cls = d3.select(this)['_groups'][0][0]['attributes']['class']['value'];
+                            cls = d3.select(this);
+                            //iii = cls.charAt(cls.length - 1);
+                            moo(this, d, ii, i);
+                        })
+                        .on("mouseout", function (d, ii) {
+                            mot(this, d, ii);
+                        });
+                }
+
+                var z1 = d3.scaleOrdinal()
+                    .range(colors.slice(0, 3))
+                    .domain(myKeys.slice(0, 3));
+                var z2 = d3.scaleOrdinal()
+                    .range(colors.slice(3, 6))
+                    .domain(myKeys.slice(3, 6));
+                // legend
+                var size = 20
+                svg.selectAll("legendsquares")
+                    .data(keysLabels.slice(0, 3))
+                    .enter()
+                    .append("rect")
+                    .attr("class", "legendsquares")
+                    .attr("x", width - 650)
+                    .attr("y", function (d, i) { return 30 + i * (size + 5) })
+                    .attr("width", size)
+                    .attr("height", size)
+                    .style("fill", function (d) { return z1(d) })
+                    ;
+
+                svg.selectAll("legendlabels")
+                    .data(keysLabels.slice(0, 3))
+                    .enter()
+                    .append("text")
+                    .attr("class", "legendlabels")
+                    .attr("x", (width - 650) + size * 1.2)
+                    .attr("y", function (d, i) { return 30 + i * (size + 5) + (size / 2) })
+                    .style("fill", function (d) { return z1(d) })
+                    .text(function (d) { return d })
+                    .attr("text-anchor", "left")
+                    .style("alignment-baseline", "middle");
+
+                if (keysLabels.length > 3) {
+                    svg.selectAll("legendsquares")
+                        .data(keysLabels.slice(3, 6))
+                        .enter()
+                        .append("rect")
+                        .attr("class", "legendsquares")
+                        .attr("x", width - 500)
+                        .attr("y", function (d, i) { return 30 + i * (size + 5) })
+                        .attr("width", size)
+                        .attr("height", size)
+                        .style("fill", function (d) { return z2(d) })
+                        ;
+
+                    svg.selectAll("legendlabels")
+                        .data(keysLabels.slice(3, 6))
+                        .enter()
+                        .append("text")
+                        .attr("class", "legendlabels")
+                        .attr("x", (width - 500) + size * 1.2)
+                        .attr("y", function (d, i) { return 30 + i * (size + 5) + (size / 2) })
+                        .style("fill", function (d) { return z2(d) })
+                        .text(function (d) { return d })
+                        .attr("text-anchor", "left")
+                        .style("alignment-baseline", "middle");
+                }
+
+                for (i = 0; i < keysLabels.length; i++) {
+                    svg.selectAll(".dot" + i)
+                        .data(mySlices[i].values)
+                        .enter()
+                        .append("circle")
+                        .attr("class", "dot" + i)
+                        .attr("cx", function (d, i) { return x(d.date); })
+                        .attr("cy", function (d) { return y(d.vals); })
+                        .attr("fill", colors[i])
+                        .attr("stroke", colors[i])
+                        .attr("r", 4)
+                        .on("mouseover", function (dd, ii) {
+                            cls = d3.select(this)['_groups'][0][0]['attributes']['class']['value'];
+                            iii = cls.charAt(cls.length - 1);
+                            moo(this, dd, ii, iii);
+                        })
+                        .on("mouseout", function (dd, ii) {
+                            mot(this, dd, ii);
+                        });
+                }
+            }
+            else {
+                d3.select("#maxcoresclass3")
+                    .style("visibility", "hidden");
+
+                var colors = ["#73c378", "#6daed5"];
+                var keysLabels = ['AMD', 'Intel'];
+                var ttdiv = d3.select("body").append("div")
+                    .attr("class", "tooltip")
+                    .style("opacity", 0);
+
+                function moo(d, i, obj) {
+                    if ('amd_max' in d || ('col' in d && d.col == 'amd_high')) {
+                        d3.selectAll(".dot1")
+                            .attr("opacity", function (dd, ii) { return ".3"; });
+                        d3.selectAll(".lines")
+                            .attr("opacity", function (dd, ii) { if (ii == 1) { return ".3"; } });
+                    }
+                    else {
+                        d3.selectAll(".dot0")
+                            .attr("opacity", function (dd, ii) { return ".3"; });
+                        d3.selectAll(".lines")
+                            .attr("opacity", function (dd, ii) { if (ii == 0) { return ".3"; } });
+                    }
+
+                    if (obj) {
+                        d3.select(obj)
+                            .attr("stroke", "red");
+
+                        ma = "<td style=\"color: #73c378\">AMD</td>";
+                        mi = "<td style=\"color: #6daed5\">Intel</td>";
+                        ad = csvDot1[i];
+                        id = csvDot2[i];
+                        // adi = Math.round(((ad.amd_max - csvDot1[0].amd_max) / csvDot1[0].amd_max * 100)) + "%";
+                        // idi = Math.round(((id.intel_max - csvDot2[0].intel_max) / csvDot2[0].intel_max * 100)) + "%";
+                        hda = "<tr>" + ma + "<td>" + ad.amd_max + " cores</td></tr>";
+                        hdi = "<tr>" + mi + "<td>" + id.intel_max + " cores</td></tr>";
+                        if ('amd_max' in d) {
+                            hda = "<tr>" + ma + "<td style=\"color: red\"><b>" + ad.amd_max + "</b> cores</td></tr>";
+                        }
+                        else if ('intel_max' in d) {
+                            hdi = "<tr>" + mi + "<td style=\"color: red\"><b>" + id.intel_max + "</b> cores</td></tr>";
+                        }
+
+                        ttdiv.transition()
+                            .duration(200)
+                            .style("opacity", 1);
+                        h = "<table><caption>Year: " + d.date + "</caption><tr><th>Mfg</th><th>Max cores</th></tr>";
+                        h = h + hda + hdi + "</table>";
+
+                        if (d.date > 2011) {
+                            ttdiv.html(h)
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX - 250) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                        }
+                        else {
+                            ttdiv.html(h)
+                                .style("visibility", "visible")
+                                .style("left", (d3.event.pageX + 40) + "px")
+                                .style("top", (d3.event.pageY - 50) + "px");
+                        }
+                    }
+                }
+                function mot(d, i, obj) {
+                    if ('amd_max' in d || ('col' in d && d.col == 'amd_high')) {
+                        d3.selectAll(".dot1")
+                            .attr("opacity", function (dd, ii) { return "1"; });
+                        d3.selectAll(".lines")
+                            .attr("opacity", function (dd, ii) { if (ii == 1) { return "1"; } });
+                    }
+                    else {
+                        d3.selectAll(".dot0")
+                            .attr("opacity", function (dd, ii) { return "1"; });
+                        d3.selectAll(".lines")
+                            .attr("opacity", function (dd, ii) { if (ii == 0) { return "1"; } });
+                    }
+                    ttdiv.style("visibility", "hidden");
+
+                    d3.select(obj)
+                        .attr("stroke", "none");
+                }
+
+                // coresmaxm
+                lines = svg.selectAll("lines")
+                    .data(slicesATIT)
+                    .enter()
+                    .append("g")
+                    .attr("class", "lines");
+
+                lines.append("path")
+                    .attr("class", keys)
+                    .attr("d", function (d) { return line(d.values); })
+                    .attr("fill", "none")
+                    .attr("stroke", function (d, i) { return colors[i]; })
+                    .attr("stroke-width", 3)
+                    .on("mouseover", function (d, i) {
+                        moo(d, i);
+                    })
+                    .on("mouseout", function (d, i) {
+                        mot(d, i);
+                    });
+
+                dottypes = ['amd_max', 'intel_max'];
+                dataf = [csvDot1, csvDot2];
+                for (i = 0; i < dottypes.length; i++) {
+                    svg.selectAll(".dot" + i)
+                        .data(dataf[i])
+                        .enter()
+                        .append("circle")
+                        .attr("class", "dot" + i)
+                        .attr("cx", function (d, i) { return x(d.date); })
+                        .attr("cy", function (d) { return y(d[dottypes[i]]); })
+                        .attr("fill", colors[i])
+                        .attr("stroke", colors[i])
+                        .attr("r", 4)
+                        .on("mouseover", function (dd, ii, obj) {
+                            moo(dd, ii, this);
+                        })
+                        .on("mouseout", function (dd, ii) {
+                            mot(dd, ii, this);
+                        });
+                }
+
+                var z = d3.scaleOrdinal()
+                    .range(colors)
+                    .domain(keys);
+
+                // legend
+                var size = 20
+                svg.selectAll("legendsquares")
+                    .data(keysLabels)
+                    .enter()
+                    .append("rect")
+                    .attr("class", "legendsquares")
+                    .attr("x", width - 650)
+                    .attr("y", function (d, i) { return 30 + i * (size + 5) })
+                    .attr("width", size)
+                    .attr("height", size)
+                    .style("fill", function (d) { return z(d) })
+                    ;
+
+                svg.selectAll("legendlabels")
+                    .data(keysLabels)
+                    .enter()
+                    .append("text")
+                    .attr("class", "legendlabels")
+                    .attr("x", (width - 650) + size * 1.2)
+                    .attr("y", function (d, i) { return 30 + i * (size + 5) + (size / 2) })
+                    .style("fill", function (d) { return z(d) })
+                    .text(function (d) { return d })
+                    .attr("text-anchor", "left")
+                    .style("alignment-baseline", "middle")
+            }
+        }
+    </script>
+
+</body>
+
+</html>
