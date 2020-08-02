@@ -46,9 +46,9 @@
     You can drill down and <b>hover</b> over all graph elements to see more data for the specific element in <span style="color: red;display: inline;">red</span>.
     </p>
 
-    <input type="button" name="slide1" value="1:CPU Counts" onclick="graph1()">
-    <input type="button" name="slide2" value="2:CPU Speed" onclick="graph2()">
-    <input type="button" name="slide3" value="3:CPU Cores" onclick="graph3()">
+    <input type="button" name="slide1" id="slide1" value="1:CPU Counts" onclick="graph1()" style="background: lightgrey;">
+    <input type="button" name="slide2" id="slide2" value="2:CPU Speed" onclick="graph2()">
+    <input type="button" name="slide3" id="slide3" value="3:CPU Cores" onclick="graph3()">
     <br/>
     <br/>
     <div id="g1content" style="visibility: hidden;">
@@ -189,6 +189,9 @@
             svg.selectAll(".legendsquares").remove();
             svg.selectAll(".legendlabels").remove();
             svg.style("margin-top","0px");
+            d3.select("#slide1").style("background", "");
+            d3.select("#slide2").style("background", "");
+            d3.select("#slide3").style("background", "");
         }
 
         function hideall() {
@@ -213,6 +216,7 @@
             hideall();
             d3.select("#g1content").style("visibility", "visible");
             d3.select("#g1content").style("display", "inline");
+            d3.select("#slide1").style("background", "lightgrey");
 
             init1();
             async function init1() {
@@ -642,6 +646,7 @@
             hideall();
             d3.select("#g2content").style("visibility", "visible");
             d3.select("#g2content").style("display", "inline");
+            d3.select("#slide2").style("background", "lightgrey");
 
             init2();
             async function init2() {
@@ -1139,6 +1144,7 @@
             hideall();
             d3.select("#g3content").style("visibility", "visible");
             d3.select("#g3content").style("display", "inline");
+            d3.select("#slide3").style("background", "lightgrey");
 
             init3();
             async function init3() {
